@@ -15,7 +15,7 @@ export default () => {
 		
 	})
 	function getBooks(query,page) {
-		console.log("Fetching books..." + query + " page# " + page);
+	//	console.log("Fetching books..." + query + " page# " + page);
  
 		const options = {
 			method: 'POST',
@@ -48,8 +48,8 @@ export default () => {
 				console.log("All pages have been loaded." );
 			}
 			else{
+				console.log(page + " pages loaded." );
 				page = page+1;
-				console.log("Incrementing page# to " +page + " " );
 				getBooks(query,page);
 			}
 	   

@@ -8,9 +8,7 @@ import { Link } from 'react-router-dom';
 
 class Search extends Component {
 	state = {
-		data: {
-			searchString: ''
-		},
+		searchQuery: '', 
 		totalResults:0,
 		booksDict: {'page': 0, 'books': []},	
 		sortedBooks: [],
@@ -34,75 +32,38 @@ class Search extends Component {
 	};
 	componentDidMount() {
 		document.addEventListener('mousedown', this.handleClickOutside);
-		this.worker = new WebWorker(worker);
+		
 	}
 
 	componentWillUnmount() {
 		document.removeEventListener('mousedown', this.handleClickOutside);
+		 
 	}
-
+ 
 	loadMoreBooks = () => {
+		if(this.worker)
+		this.worker.terminate();
+		this.worker = new WebWorker(worker);
 		let options = {
-			query: this.state.data.searchString,
+			query: this.state.searchQuery,
 			page: this.state.page
 		};
-		this.worker.postMessage(options);
 
-		this.worker.addEventListener('message', event => {
-		 
-			//console.log("Recieved message in main thread....");
-			console.log(event.data);
+		const self =this;
+		this.worker.postMessage(options);
+		this.worker.onmessage = function(event) {
 			if(typeof event.data == "number")
 			{
-				console.log("Nummber..setting percentage");
-				this.setState({percentage:event.data});
+				self.setState({percentage:event.data});
 			}
 			else{
-				this.setState({booksDict: event.data});
-				this.sortBooks();
+				self.setState({booksDict: event.data});
+				self.sortBooks();
 			}
-			// let booksDict = []; 			
-			// booksDict.push({
-			// 	key:   parseInt(data.resultsStart/20),
-			// 	value: data.results
-			// });
-			
-			// // get total results, divide by 20 , calculate pagesCount
-			// const pagesCount = parseInt((data.totalResults / 20) + 1);
-			 
-			// this.setState({pagesCount,booksDict, totalResults:data.totalResults});
-			// this.loadNextPages();
-		});
+		 
+		}
 	}
-	// loadNextPages = () =>{
-	// 	let {booksDict,pagesCount} = this.state;
-	// 	this.nextPageWorker = new WebWorker(worker);
-	// 	this.nextPageWorker.addEventListener('message', event => {
-	// 		const data = event.data;
-		 
-	// 		booksDict.push({
-	// 			key:   parseInt(data.resultsStart/20),
-	// 			value: data.results
-	// 		});
-		 
-	// 		const percentage = parseInt((Object.values( booksDict).length / parseInt( pagesCount) )*100);
-	// 		this.setState({booksDict,percentage});
-		 
-	// 		// if all pages are loaded
-	// 		if(Object.keys( booksDict).length ===  pagesCount){
-	// 			this.sortBooks();
-	// 		}
-		 
-	// 	});
-	// 	for(let i =2; i<=parseInt(this.state.pagesCount);i++)
-	// 	{		 
-	// 		let options = {
-	// 			searchString: this.state.data.searchString,
-	// 			page: i
-	// 		};
-	// 		this.nextPageWorker.postMessage(options);
-	// 	}
-	// }
+	 
 	sortBooks = () => { 
 		const {booksDict} = this.state; 
 		 
@@ -121,18 +82,21 @@ class Search extends Component {
 
 
 	renderSuggestion = () => {	 
-		 
-		let { showSugestions,percentage,pagesCount,booksDict,sortedBooks} = this.state;
-		let {searchString} = this.state.data;
+		
+		let { showSugestions,percentage,pagesCount,booksDict,sortedBooks,searchQuery} = this.state;
+	 
 		sortedBooks = sortedBooks.slice( sortedBooks.length - 6,  sortedBooks.length-1);
 		let totalResults = this.state.totalResults;
 
 		if (totalResults >= 5) {
 			totalResults = totalResults - 5;
 		}
-		if ( searchString.length <= 0) {
+		if ( searchQuery.length <= 0) {
 			return  ;
 		} 
+		// if ( percentage === 100 && totalResults === 0) {
+		// 	return  <p>No results found</p>;
+		// } 
 		if ( sortedBooks.length === 0  ) {
 			return <p>Searching... { percentage}%</p>;
 		}
@@ -162,9 +126,11 @@ class Search extends Component {
 								to={{
 									pathname: '/books',
 									state: { booksDict:  booksDict ,
-									pagesCount: pagesCount,
-									totalResults: this.state.totalResults,
-									searchString:  searchString}
+									percentage:percentage,
+									searchQuery:  searchQuery,
+									totalResults:totalResults
+								
+							}
 								}}
 							>
 								{totalResults + ' more results'}
@@ -177,50 +143,66 @@ class Search extends Component {
 	
 	handleChange = ({ currentTarget: input }) => {
 		
-		const data = { ...this.state.data };
-		data[input.name] = input.value;
 		const self = this;
 		// if user starts typing aagain, clear previous timeout
 		const { typingTimeout } = this.state
 		if (typingTimeout) {
 			clearTimeout(typingTimeout);
+			
 		}
 
 		this.setState((prevState, prevProps) => ({
-			data,
+			searchQuery:input.value,
 			typingTimeout: setTimeout(function () {
+			 
 				self.loadMoreBooks();
 				}, 2000)
 		}));
 	};
+	handleSubmit = () => {
+		const {booksDict,totalResults,searchQuery} = this.state;
 	 
-
+		this.props.history.push({
+			pathname: '/books',	 
+			state: { booksDict:  booksDict ,
+			totalResults: totalResults,
+			searchQuery:  searchQuery}
+		});
+	}
+	isSearchComplete = () => {
+		const {percentage} = this.state;
+		 
+		return percentage === 100 ? false:true;
+	}
 	render() {
-		const {booksDict,pagesCount,totalResults} = this.state;
-		const {searchString} = this.state.data;
+		const {booksDict,pagesCount,totalResults,searchQuery} = this.state;
+	 
 		return (
 			<div>
-				<form>
+				<form onSubmit={this.handleSubmit}>
 				 
 					<Input
 						type="text"
-						name="searchString"
-						value={this.state.data.searchString}
+						name="searchQuery"
+						value={this.state.searchQuery}
 						label="search"
 						onChange={this.handleChange}
 						autoComplete="off"
 					/>
-					<Link
+					{/* <Link
 						to={{
 							pathname: '/books',
 							state: { booksDict:  booksDict ,
 							pagesCount: pagesCount,
 							totalResults: totalResults,
-							searchString:  searchString}
-						}}>
+							searchQuery:  searchQuery,
+						worker : this.worker}
+						}}
+						disabled={true}
+						>
 								Search
-							</Link>
-			
+							</Link> */}
+					<button className="btn btn-primary" disabled={this.isSearchComplete()}>Search</button>
 					{this.renderSuggestion()}
 
 					<div />
